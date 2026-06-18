@@ -19,3 +19,8 @@ contents/*
 # Build
 
 necore
+
+# dotenv
+.env
+.env.*
+!.env.example
