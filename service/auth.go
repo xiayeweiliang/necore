@@ -2,8 +2,11 @@ package service
 
 import (
 	"encoding/json"
+	"errors"
+	"fmt"
 	"necore/dao"
 	"necore/model"
+	"strings"
 
 	"github.com/gofiber/fiber/v2"
 )
@@ -80,24 +83,52 @@ func Login(c *fiber.Ctx) error {
 
 // Register by admin
 func AddUser(c *fiber.Ctx) error {
-	// Check if user is admin
 	currentUser := c.Locals("currentUser").(model.User)
+
 	if !dao.ContainsGroup(currentUser.Group, "admin") {
-		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "Forbidden"})
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+			"error": "Forbidden",
+		})
 	}
 
-	// Parse body
 	type NewUser struct {
 		Username string `json:"username"`
 		Password string `json:"password"`
 	}
+
 	user := new(NewUser)
+
 	if err := c.BodyParser(user); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Review your input", "err": err})
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Review your input",
+			"err":   err.Error(),
+		})
 	}
 
-	if err := dao.AddUserByUsername(user.Username, user.Password); err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	username := strings.TrimSpace(user.Username)
+
+	if username == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Username cannot be empty",
+		})
+	}
+
+	if user.Password == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Password cannot be empty",
+		})
+	}
+
+	if err := dao.AddUserByUsername(username, user.Password); err != nil {
+		if errors.Is(err, fmt.Errorf("user already exists")) {
+			return c.Status(fiber.StatusConflict).JSON(fiber.Map{
+				"error": "Username already exists",
+			})
+		}
+
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": err.Error(),
+		})
 	}
 
 	return c.JSON(fiber.Map{})

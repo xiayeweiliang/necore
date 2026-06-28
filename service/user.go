@@ -4,13 +4,14 @@ import (
 	"encoding/json"
 	"necore/dao"
 	"necore/model"
+	"net/url"
 	"slices"
 
 	"github.com/gofiber/fiber/v2"
 )
 
 func GetUserInfo(c *fiber.Ctx) error {
-	userId := c.Params("id")
+	userId, _ := url.PathUnescape(c.Params("id"))
 
 	userModel, err := dao.GetUserByUsername(userId)
 	if err != nil || userModel == nil {
@@ -91,7 +92,7 @@ func DeleteUser(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "Forbidden"})
 	}
 
-	username := c.Params("id")
+	username, _ := url.PathUnescape(c.Params("id"))
 	err := dao.UpdateUserPermissions(username)
 	if err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": "Internal server error"})
@@ -189,7 +190,7 @@ func UpdateUserInfo(c *fiber.Ctx) error {
 }
 
 func GetUserAvatar(c *fiber.Ctx) error {
-	userId := c.Params("id")
+	userId, _ := url.PathUnescape(c.Params("id"))
 
 	avatar, err := dao.GetUserAvatar(userId)
 	if err != nil {

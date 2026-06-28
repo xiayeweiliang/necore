@@ -109,7 +109,9 @@ func DeleteDocumentNode(id string) error {
 	}
 
 	if err := db.Transaction(func(tx *gorm.DB) error {
-		result := tx.Where("id IN ?", ids).Delete(&model.DocumentNode{})
+		result := tx.Unscoped().
+			Where("id IN ?", ids).
+			Delete(&model.DocumentNode{})
 		if result.Error != nil {
 			return result.Error
 		}

@@ -3,11 +3,13 @@ package dao
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log"
 	"necore/config"
 	"necore/database"
 	"necore/model"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -78,8 +80,50 @@ func GetUserByUsername(u string) (*model.User, error) {
 }
 
 func AddUserByUsername(username string, password string) error {
+	username = strings.TrimSpace(username)
+
+	if username == "" {
+		return fmt.Errorf("username cannot be empty")
+	}
+
+	if password == "" {
+		return fmt.Errorf("password cannot be empty")
+	}
+
 	hash, err := hashPassword(password)
 	if err != nil {
+		return err
+	}
+
+	db := database.GetUserDatabase()
+
+	var existingUser model.User
+
+	err = db.Unscoped().
+		Where("username = ?", username).
+		First(&existingUser).Error
+
+	if err == nil {
+		if !existingUser.DeletedAt.Valid {
+			return fmt.Errorf("user already exists")
+		}
+
+		// 这里不要新建用户，而是复活旧用户。
+		// 关键点：token_version 必须递增，避免旧 JWT 在同名用户重建后重新有效。
+		return db.Unscoped().
+			Model(&existingUser).
+			Updates(map[string]any{
+				"password":      hash,
+				"group":         `[]`,
+				"tags":          `[]`,
+				"avatar":        "",
+				"token_version": gorm.Expr("token_version + ?", 1),
+				"deleted_at":    nil,
+				"updated_at":    time.Now(),
+			}).Error
+	}
+
+	if !errors.Is(err, gorm.ErrRecordNotFound) {
 		return err
 	}
 
@@ -88,10 +132,11 @@ func AddUserByUsername(username string, password string) error {
 		Password:     hash,
 		Group:        `[]`,
 		Tags:         `[]`,
+		Avatar:       "",
 		TokenVersion: 1,
 	}
 
-	return database.GetUserDatabase().Create(&user).Error
+	return db.Create(&user).Error
 }
 
 func GetAllUsers() ([]model.User, error) {
@@ -103,7 +148,20 @@ func GetAllUsers() ([]model.User, error) {
 
 func DeleteUserByUsername(username string) error {
 	db := database.GetUserDatabase()
-	return db.Where(&model.User{Username: username}).Delete(&model.User{}).Error
+
+	result := db.
+		Where("username = ?", username).
+		Delete(&model.User{})
+
+	if result.Error != nil {
+		return result.Error
+	}
+
+	if result.RowsAffected == 0 {
+		return fmt.Errorf("user '%s' not found", username)
+	}
+
+	return nil
 }
 
 func CheckUserPassword(input string, password string) bool {
