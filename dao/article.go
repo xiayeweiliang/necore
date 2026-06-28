@@ -90,7 +90,9 @@ func GetArticleList(target string, page int, pageSize int, pin bool) ([]model.Ar
 func DeleteArticle(id string) error {
 	db := database.GetArticleDatabase()
 
-	result := db.Where("id = ?", id).Delete(&model.Article{})
+	result := db.Unscoped().
+		Where("id = ?", id).
+		Delete(&model.Article{})
 	if result.Error != nil {
 		return result.Error
 	}

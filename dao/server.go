@@ -44,6 +44,7 @@ func UpdateServer(server model.Server) error {
 
 func DeleteServer(id string) error {
 	result := database.GetServerDatabase().
+		Unscoped().
 		Where("id = ?", id).
 		Delete(&model.Server{})
 
