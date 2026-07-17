@@ -31,6 +31,7 @@ func generateStoredFilename(original string) (string, error) {
 		".webp": true,
 		".pdf":  true,
 		".txt":  true,
+		".gif":  true, //对gif的支持
 	}
 
 	if !allowedExtensions[extension] {

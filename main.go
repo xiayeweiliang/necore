@@ -10,7 +10,7 @@ import (
 
 func main() {
 	// This will print a hash of "test". U can insert it into sqlite3 manually for an admin account (the group section should be `["admin"]`).
-	// dao.DebugTestPassword()
+	//dao.DebugTestPassword()
 
 	if err := config.Init(); err != nil {
 		log.Fatalf("initialize configuration: %v", err)

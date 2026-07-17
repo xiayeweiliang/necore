@@ -24,3 +24,4 @@ necore
 .env
 .env.*
 !.env.example
+.idea/
