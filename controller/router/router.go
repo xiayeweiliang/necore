@@ -98,7 +98,6 @@ func SetupRoutes() {
 	botGroup.Get("/status", middleware.AuthNeeded(), service.GetWSStatus)
 	botGroup.Delete("/ws/kick/:session_id", middleware.AuthNeeded(), service.KickConnection)
 
-<<<<<<< HEAD
 	departmentGroup := (*router).Group("/department")
 	departmentGroup.Get("/", service.GetDepartmentList)
 	departmentGroup.Post("/create", middleware.AuthNeeded(), service.CreateDepartment)
@@ -109,7 +108,7 @@ func SetupRoutes() {
 	departmentGroup.Delete("/:id/member/:username", middleware.AuthNeeded(), service.RemoveDepartmentMember)
 	departmentGroup.Patch("/:id/member/:username/leader", middleware.AuthNeeded(), service.UpdateDepartmentMemberLeaderStatus)
 	departmentGroup.Patch("/:id/member/order", middleware.AuthNeeded(), service.UpdateDepartmentMemberOrder)
-=======
+
 	wikiGroup := (*router).Group("/wiki")
 	wikiGroup.Get("/glossary", service.GetGlossaryList)
 	wikiGroup.Get("/glossary/:id", service.GetGlossaryById)
@@ -125,5 +124,4 @@ func SetupRoutes() {
 
 	wikiGroup.Post("/upload/:id", middleware.AuthNeeded(), service.UploadWikiFile)
 	wikiGroup.Delete("/upload/:id", middleware.AuthNeeded(), service.DeleteWikiFile)
->>>>>>> d59119a76663b45a735c5123636414223a09fa82
 }
