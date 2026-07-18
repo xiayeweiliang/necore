@@ -8,6 +8,7 @@ import (
 	"necore/config"
 	"necore/database"
 	"necore/model"
+	"necore/util"
 	"slices"
 	"strings"
 	"time"
@@ -216,4 +217,110 @@ func UpdateUserAvatar(username string, avatar string) error {
 	var user *model.User
 	db.Where(&model.User{Username: username}).First(&user)
 	return db.Model(&user).Updates(model.User{Avatar: avatar}).Error
+}
+
+// GetUserCount returns the number of non-soft-deleted users.
+func GetUserCount() (int64, error) {
+	db := database.GetUserDatabase()
+	var count int64
+	err := db.Model(&model.User{}).Count(&count).Error
+	return count, err
+}
+
+// AddAdminUser creates a user with the admin group. If a soft-deleted user
+// with the same name exists, it is revived (token_version incremented) and
+// promoted to admin, mirroring AddUserByUsername's revival branch.
+func AddAdminUser(username string, password string) error {
+	username = strings.TrimSpace(username)
+
+	if username == "" {
+		return fmt.Errorf("username cannot be empty")
+	}
+
+	if password == "" {
+		return fmt.Errorf("password cannot be empty")
+	}
+
+	hash, err := hashPassword(password)
+	if err != nil {
+		return err
+	}
+
+db := database.GetUserDatabase()
+
+	// Use Limit(1).Find rather than First. Find returns no error when zero
+	// rows match, so GORM does not log "record not found" at startup and the
+	// initial admin banner stays clean.
+	var existing []model.User
+
+	result := db.Unscoped().
+		Where("username = ?", username).
+		Limit(1).
+		Find(&existing)
+
+	if result.Error != nil {
+		return result.Error
+	}
+
+	if len(existing) == 1 {
+		existingUser := existing[0]
+		if !existingUser.DeletedAt.Valid {
+			return fmt.Errorf("user already exists")
+		}
+
+		return db.Unscoped().
+			Model(&existingUser).
+			Updates(map[string]any{
+				"password":      hash,
+				"group":         `["admin"]`,
+				"tags":          `[]`,
+				"avatar":        "",
+				"token_version": gorm.Expr("token_version + ?", 1),
+				"deleted_at":    nil,
+				"updated_at":    time.Now(),
+			}).Error
+	}
+
+	user := model.User{
+		Username:     username,
+		Password:    hash,
+		Group:        `["admin"]`,
+		Tags:         `[]`,
+		Avatar:       "",
+		TokenVersion: 1,
+	}
+
+	return db.Create(&user).Error
+}
+
+// EnsureInitialAdmin creates an administrator named "admin" with a random
+// password when the user database is empty, and prints the credentials to the
+// terminal exactly once. On subsequent starts it remains silent.
+func EnsureInitialAdmin() error {
+	count, err := GetUserCount()
+	if err != nil {
+		return fmt.Errorf("count users: %w", err)
+	}
+
+	if count > 0 {
+		return nil
+	}
+
+	password, err := util.GenerateSecureToken("", 8)
+	if err != nil {
+		return fmt.Errorf("generate admin password: %w", err)
+	}
+
+	if err := AddAdminUser("admin", password); err != nil {
+		return fmt.Errorf("create initial admin: %w", err)
+	}
+
+	log.Println("===========================================================")
+	log.Println(" Initial admin created (user database was empty)")
+	log.Println("   username: admin")
+	log.Println("   password:", password)
+	log.Println(" Please log in and change it immediately. It won't be shown again.")
+	log.Println("===========================================================")
+
+	return nil
 }

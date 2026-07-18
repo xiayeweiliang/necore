@@ -17,7 +17,7 @@ var instance *fiberAppInstance
 
 func init() {
 	app := fiber.New(fiber.Config{
-		Prefork:   true,
+		Prefork:   false,
 		AppName:   "NMO Ecosystem Core",
 		BodyLimit: 512 * 1024 * 1024,
 	})

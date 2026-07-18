@@ -21,6 +21,8 @@ var botTokenDatabase *gorm.DB
 
 var departmentDatabase *gorm.DB
 
+var wikiDatabase *gorm.DB
+
 func ConnectSqlite() {
 	var err error
 	userDatabase, err = gorm.Open(sqlite.Open("data/user.sqlite3"), &gorm.Config{})
@@ -53,6 +55,12 @@ func ConnectSqlite() {
 	}
 	botTokenDatabase.AutoMigrate(&model.BotToken{})
 
+	wikiDatabase, err = gorm.Open(sqlite.Open("data/wiki.sqlite3"), &gorm.Config{})
+	if err != nil {
+		panic("failed to connect wiki database")
+	}
+	wikiDatabase.AutoMigrate(&model.Glossary{}, &model.Item{})
+
 	departmentDatabase, err = gorm.Open(sqlite.Open("data/department.sqlite3"), &gorm.Config{})
 	if err != nil {
 		panic("failed to connect department database")
@@ -82,4 +90,8 @@ func GetBotTokenDatabase() *gorm.DB {
 
 func GetDepartmentDatabase() *gorm.DB {
 	return departmentDatabase
+}
+
+func GetWikiDatabase() *gorm.DB {
+	return wikiDatabase
 }
