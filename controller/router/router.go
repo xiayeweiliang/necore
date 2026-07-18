@@ -97,4 +97,15 @@ func SetupRoutes() {
 	botGroup.Delete("/token/:id", middleware.AuthNeeded(), service.DeleteBotToken)
 	botGroup.Get("/status", middleware.AuthNeeded(), service.GetWSStatus)
 	botGroup.Delete("/ws/kick/:session_id", middleware.AuthNeeded(), service.KickConnection)
+
+	departmentGroup := (*router).Group("/department")
+	departmentGroup.Get("/", service.GetDepartmentList)
+	departmentGroup.Post("/create", middleware.AuthNeeded(), service.CreateDepartment)
+	departmentGroup.Patch("/", middleware.AuthNeeded(), service.UpdateDepartment)
+	departmentGroup.Patch("/order", middleware.AuthNeeded(), service.UpdateDepartmentOrder)
+	departmentGroup.Delete("/:id", middleware.AuthNeeded(), service.DeleteDepartment)
+	departmentGroup.Post("/:id/member", middleware.AuthNeeded(), service.AddDepartmentMember)
+	departmentGroup.Delete("/:id/member/:username", middleware.AuthNeeded(), service.RemoveDepartmentMember)
+	departmentGroup.Patch("/:id/member/:username/leader", middleware.AuthNeeded(), service.UpdateDepartmentMemberLeaderStatus)
+	departmentGroup.Patch("/:id/member/order", middleware.AuthNeeded(), service.UpdateDepartmentMemberOrder)
 }

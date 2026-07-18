@@ -68,6 +68,7 @@ func setupTestEnv(t *testing.T) *testEnv {
 	setGormLoggerSilent(database.GetServerDatabase())
 	setGormLoggerSilent(database.GetDocumentDatabase())
 	setGormLoggerSilent(database.GetBotTokenDatabase())
+	setGormLoggerSilent(database.GetDepartmentDatabase())
 
 	// 必须在 Windows 删除 TempDir 前关闭 SQLite 连接池，否则数据库文件会被锁定。
 	t.Cleanup(func() {
@@ -76,6 +77,7 @@ func setupTestEnv(t *testing.T) *testEnv {
 		closeGormDB(t, database.GetServerDatabase())
 		closeGormDB(t, database.GetDocumentDatabase())
 		closeGormDB(t, database.GetBotTokenDatabase())
+		closeGormDB(t, database.GetDepartmentDatabase())
 	})
 
 	must(t, dao.AddUserByUsername("admin", "admin-pass"))
@@ -281,6 +283,17 @@ func registerRoutes(app *fiber.App) {
 	botGroup.Delete("/token/:id", middleware.AuthNeeded(), service.DeleteBotToken)
 	botGroup.Get("/status", middleware.AuthNeeded(), service.GetWSStatus)
 	botGroup.Delete("/ws/kick/:session_id", middleware.AuthNeeded(), service.KickConnection)
+
+	departmentGroup := api.Group("/department")
+	departmentGroup.Get("/", service.GetDepartmentList)
+	departmentGroup.Post("/create", middleware.AuthNeeded(), service.CreateDepartment)
+	departmentGroup.Patch("/", middleware.AuthNeeded(), service.UpdateDepartment)
+	departmentGroup.Patch("/order", middleware.AuthNeeded(), service.UpdateDepartmentOrder)
+	departmentGroup.Delete("/:id", middleware.AuthNeeded(), service.DeleteDepartment)
+	departmentGroup.Post("/:id/member", middleware.AuthNeeded(), service.AddDepartmentMember)
+	departmentGroup.Delete("/:id/member/:username", middleware.AuthNeeded(), service.RemoveDepartmentMember)
+	departmentGroup.Patch("/:id/member/:username/leader", middleware.AuthNeeded(), service.UpdateDepartmentMemberLeaderStatus)
+	departmentGroup.Patch("/:id/member/order", middleware.AuthNeeded(), service.UpdateDepartmentMemberOrder)
 }
 
 func must(t *testing.T, err error) {
@@ -943,6 +956,81 @@ func TestDocument_PathTraversalUpload(t *testing.T) {
 	if resp.StatusCode == 200 {
 		t.Fatal("PATH TRAVERSAL POSSIBLE IN FILE UPLOAD")
 	}
+}
+
+/*
+DEPARTMENT ROUTES
+*/
+func TestDepartmentRoutes(t *testing.T) {
+	env := setupTestEnv(t)
+
+	assertStatus(t, doJSON(t, env, http.MethodGet, "/necore/department/", "", nil), http.StatusOK)
+
+	createResp := doJSON(t, env, http.MethodPost, "/necore/department/create", env.adminToken, fiber.Map{
+		"name":        "运维保障部",
+		"description": "负责服务器与网站稳定运行",
+		"icon":        "/contents/dept/icon.png",
+		"sortOrder":   1,
+	})
+	assertStatus(t, createResp, http.StatusOK)
+	createBody := decodeBody(t, createResp)
+	deptID, _ := createBody["id"].(string)
+	if deptID == "" {
+		t.Fatalf("create department should return id, got %#v", createBody)
+	}
+
+	assertStatus(t, doJSON(t, env, http.MethodPost, "/necore/department/"+deptID+"/member", env.adminToken, fiber.Map{
+		"username":  "alice",
+		"sortOrder": 1,
+		"isLeader":  true,
+	}), http.StatusOK)
+
+	listResp := doJSON(t, env, http.MethodGet, "/necore/department/", "", nil)
+	assertStatus(t, listResp, http.StatusOK)
+	listBody := decodeBody(t, listResp)
+	departments, ok := listBody["departments"].([]any)
+	if !ok || len(departments) != 1 {
+		t.Fatalf("department list = %#v", listBody["departments"])
+	}
+	dept := departments[0].(map[string]any)
+	members, ok := dept["members"].([]any)
+	if !ok || len(members) != 1 {
+		t.Fatalf("members = %#v", dept["members"])
+	}
+	member := members[0].(map[string]any)
+	if member["isLeader"] != true {
+		t.Fatalf("expected isLeader true after add, got %#v (%T)", member["isLeader"], member["isLeader"])
+	}
+
+	assertStatus(t, doJSON(t, env, http.MethodPatch, "/necore/department/"+deptID+"/member/alice/leader", env.adminToken, fiber.Map{
+		"isLeader": false,
+	}), http.StatusOK)
+
+	listAfterToggleResp := doJSON(t, env, http.MethodGet, "/necore/department/", "", nil)
+	assertStatus(t, listAfterToggleResp, http.StatusOK)
+	listAfterToggleBody := decodeBody(t, listAfterToggleResp)
+	departmentsAfterToggle, ok := listAfterToggleBody["departments"].([]any)
+	if !ok || len(departmentsAfterToggle) != 1 {
+		t.Fatalf("department list after toggle = %#v", listAfterToggleBody["departments"])
+	}
+	deptAfterToggle := departmentsAfterToggle[0].(map[string]any)
+	membersAfterToggle, ok := deptAfterToggle["members"].([]any)
+	if !ok || len(membersAfterToggle) != 1 {
+		t.Fatalf("members after toggle = %#v", deptAfterToggle["members"])
+	}
+	memberAfterToggle := membersAfterToggle[0].(map[string]any)
+	if memberAfterToggle["isLeader"] != false {
+		t.Fatalf("expected isLeader false after toggle, got %#v (%T)", memberAfterToggle["isLeader"], memberAfterToggle["isLeader"])
+	}
+
+	assertStatus(t, doJSON(t, env, http.MethodPatch, "/necore/department/order", env.adminToken, fiber.Map{
+		"orders": []fiber.Map{
+			{"id": deptID, "sortOrder": 2},
+		},
+	}), http.StatusOK)
+
+	assertStatus(t, doJSON(t, env, http.MethodDelete, "/necore/department/"+deptID+"/member/alice", env.adminToken, nil), http.StatusOK)
+	assertStatus(t, doJSON(t, env, http.MethodDelete, "/necore/department/"+deptID, env.adminToken, nil), http.StatusOK)
 }
 
 /*

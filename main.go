@@ -17,6 +17,7 @@ func main() {
 	}
 
 	database.ConnectSqlite()
+	database.ConnectSqlite()
 	router.SetupRoutes()
 	app.Start()
 }
