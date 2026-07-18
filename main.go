@@ -5,6 +5,7 @@ import (
 	"necore/app"
 	"necore/config"
 	"necore/controller/router"
+	"necore/dao"
 	"necore/database"
 )
 
@@ -17,6 +18,11 @@ func main() {
 	}
 
 	database.ConnectSqlite()
+
+	if err := dao.EnsureInitialAdmin(); err != nil {
+		log.Fatalf("ensure initial admin: %v", err)
+	}
+
 	router.SetupRoutes()
 	app.Start()
 }
